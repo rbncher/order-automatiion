@@ -1,0 +1,16 @@
+fastapi>=0.110,<1
+uvicorn[standard]>=0.27,<1
+sqlalchemy>=2.0,<3
+alembic>=1.13,<2
+psycopg2-binary>=2.9,<3
+pydantic>=2.5,<3
+pydantic-settings>=2.1,<3
+requests>=2.31,<3
+paramiko>=3.4,<4
+apscheduler>=3.10,<4
+jinja2>=3.1,<4
+python-multipart>=0.0.6
+aiofiles>=23.2,<24
+pytest>=8.0,<9
+pytest-asyncio>=0.23,<1
+httpx>=0.27,<1

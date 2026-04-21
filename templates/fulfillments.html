@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}Fulfillments{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold text-gray-900">Fulfillments</h1>
+        <p class="text-gray-500 text-sm mt-1">One row per Rithum Fulfillment / outbound PO</p>
+    </div>
+
+    <form method="GET" action="/fulfillments" class="flex items-center space-x-3">
+        <select name="status" class="text-sm border border-gray-300 rounded-md px-3 py-1.5">
+            <option value="">All statuses</option>
+            {% for s in statuses %}
+            <option value="{{ s }}" {{ 'selected' if filter_status == s else '' }}>{{ s }}</option>
+            {% endfor %}
+        </select>
+        <select name="vendor" class="text-sm border border-gray-300 rounded-md px-3 py-1.5">
+            <option value="">All vendors</option>
+            {% for v in vendors %}
+            <option value="{{ v.code }}" {{ 'selected' if filter_vendor == v.code else '' }}>{{ v.code }}</option>
+            {% endfor %}
+        </select>
+        <button type="submit" class="bg-blue-600 text-white text-sm px-4 py-1.5 rounded-md hover:bg-blue-700">
+            Filter
+        </button>
+    </form>
+</div>
+
+<div class="bg-white rounded-lg shadow overflow-x-auto">
+    <table class="min-w-full divide-y divide-gray-200">
+        <thead class="bg-gray-50">
+            <tr>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">PO #</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Vendor</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Rithum Fulf</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Order #</th>
+                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Lines</th>
+                <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Qty</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ship To</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tracking</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Created</th>
+            </tr>
+        </thead>
+        <tbody class="bg-white divide-y divide-gray-200">
+            {% for row in batch_rows %}
+            {% set b = row.b %}
+            {% set it = row.first_item %}
+            <tr class="hover:bg-gray-50 cursor-pointer" onclick="window.location='/fulfillments/{{ b.id }}'">
+                <td class="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">{{ b.po_number }}</td>
+                <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">{{ b.vendor.code if b.vendor else '?' }}</td>
+                <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">{{ b.rithum_fulfillment_id }}</td>
+                <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">{{ b.rithum_order_id }}</td>
+                <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500 text-right">{{ b.line_count }}</td>
+                <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500 text-right">{{ b.total_quantity }}</td>
+                <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+                    {% if it %}{{ it.ship_to_name }} · {{ it.ship_to_city }}, {{ it.ship_to_state }}{% else %}—{% endif %}
+                </td>
+                <td class="px-4 py-3 whitespace-nowrap">
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                        {% if b.status == 'complete' %}bg-green-100 text-green-800
+                        {% elif b.status == 'failed' %}bg-red-100 text-red-800
+                        {% elif b.status == 'pending' %}bg-amber-100 text-amber-800
+                        {% elif b.status == 'sent' %}bg-blue-100 text-blue-800
+                        {% elif b.status == 'pending_fulfillment' %}bg-cyan-100 text-cyan-800
+                        {% elif b.status == 'shipped' %}bg-purple-100 text-purple-800
+                        {% else %}bg-gray-100 text-gray-800{% endif %}">
+                        {{ b.status }}
+                    </span>
+                </td>
+                <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500 font-mono">{{ b.tracking_number or '—' }}</td>
+                <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-400">{{ b.created_at.strftime('%m/%d %H:%M') if b.created_at else '' }}</td>
+            </tr>
+            {% endfor %}
+            {% if not batch_rows %}
+            <tr><td colspan="10" class="px-4 py-8 text-center text-gray-400">No fulfillments yet</td></tr>
+            {% endif %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+{% block title %}Order #{{ item.id }}{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    <a href="/orders" class="text-sm text-blue-600 hover:text-blue-800">&larr; Back to Orders</a>
+    <h1 class="text-2xl font-bold text-gray-900 mt-2">Order Line Item #{{ item.id }}</h1>
+</div>
+
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+    <!-- Order Info -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <h2 class="text-lg font-semibold text-gray-900 mb-4">Order Details</h2>
+        <dl class="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+            <dt class="text-gray-500">Status</dt>
+            <dd>
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                    {% if item.status == 'complete' %}bg-green-100 text-green-800
+                    {% elif item.status == 'failed' %}bg-red-100 text-red-800
+                    {% elif item.status == 'pending' %}bg-amber-100 text-amber-800
+                    {% elif item.status == 'submitted' %}bg-blue-100 text-blue-800
+                    {% elif item.status == 'shipped' %}bg-purple-100 text-purple-800
+                    {% else %}bg-gray-100 text-gray-800{% endif %}">
+                    {{ item.status }}
+                </span>
+            </dd>
+            <dt class="text-gray-500">SKU</dt>
+            <dd class="font-medium">{{ item.sku }}</dd>
+            <dt class="text-gray-500">EAN</dt>
+            <dd>{{ item.ean or '—' }}</dd>
+            <dt class="text-gray-500">MPN</dt>
+            <dd>{{ item.mpn or '—' }}</dd>
+            <dt class="text-gray-500">Quantity</dt>
+            <dd>{{ item.quantity }}</dd>
+            <dt class="text-gray-500">Unit Price</dt>
+            <dd>{{ item.unit_price or '—' }}</dd>
+            <dt class="text-gray-500">PO Number</dt>
+            <dd>{{ item.po_number or '—' }}</dd>
+            <dt class="text-gray-500">Rithum Order ID</dt>
+            <dd>{{ item.rithum_order_id }}</dd>
+            <dt class="text-gray-500">Rithum Item ID</dt>
+            <dd>{{ item.rithum_item_id }}</dd>
+            <dt class="text-gray-500">Vendor</dt>
+            <dd>{{ item.vendor.code if item.vendor else '?' }} — {{ item.vendor.name if item.vendor else '' }}</dd>
+        </dl>
+    </div>
+
+    <!-- Shipping & Tracking -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <h2 class="text-lg font-semibold text-gray-900 mb-4">Shipping</h2>
+        <dl class="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+            <dt class="text-gray-500">Ship To</dt>
+            <dd>{{ item.ship_to_name or '—' }}</dd>
+            <dt class="text-gray-500">Address</dt>
+            <dd>{{ item.ship_to_address1 or '' }} {{ item.ship_to_address2 or '' }}</dd>
+            <dt class="text-gray-500">City/State/Zip</dt>
+            <dd>{{ item.ship_to_city or '' }}, {{ item.ship_to_state or '' }} {{ item.ship_to_postal or '' }}</dd>
+            <dt class="text-gray-500">Country</dt>
+            <dd>{{ item.ship_to_country or '—' }}</dd>
+            <dt class="text-gray-500">Tracking</dt>
+            <dd class="font-medium">{{ item.tracking_number or '—' }}</dd>
+            <dt class="text-gray-500">Carrier</dt>
+            <dd>{{ item.carrier or '—' }}</dd>
+            <dt class="text-gray-500">Ship Date</dt>
+            <dd>{{ item.ship_date or '—' }}</dd>
+            <dt class="text-gray-500">Fulfillment ID</dt>
+            <dd>{{ item.rithum_fulfillment_id or '—' }}</dd>
+        </dl>
+
+        {% if item.last_error %}
+        <div class="mt-4 bg-red-50 border border-red-200 rounded-md p-3">
+            <div class="text-sm font-medium text-red-800">Last Error</div>
+            <div class="text-sm text-red-700 mt-1">{{ item.last_error }}</div>
+            <div class="text-xs text-red-500 mt-1">Retry count: {{ item.retry_count }}</div>
+        </div>
+        {% endif %}
+
+        <!-- Action buttons -->
+        <div class="mt-4 flex space-x-3">
+            {% if item.status == 'failed' %}
+            <form method="POST" action="/orders/{{ item.id }}/retry">
+                <button class="bg-blue-600 text-white text-sm px-4 py-2 rounded-md hover:bg-blue-700">
+                    Retry
+                </button>
+            </form>
+            {% endif %}
+            {% if item.status in ['pending', 'submitted', 'failed'] %}
+            <form method="POST" action="/orders/{{ item.id }}/cancel"
+                  onsubmit="return confirm('Cancel this order?')">
+                <button class="bg-red-600 text-white text-sm px-4 py-2 rounded-md hover:bg-red-700">
+                    Cancel
+                </button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Audit Trail -->
+<div class="bg-white rounded-lg shadow">
+    <div class="px-6 py-4 border-b border-gray-200">
+        <h2 class="text-lg font-semibold text-gray-900">Audit Trail</h2>
+    </div>
+    <div class="divide-y divide-gray-100">
+        {% for a in audit %}
+        <div class="px-6 py-3">
+            <div class="flex items-center justify-between">
+                <div class="text-sm">
+                    <span class="font-medium text-gray-900">{{ a.action }}</span>
+                    {% if a.old_value and a.new_value %}
+                    <span class="text-gray-500">{{ a.old_value }} &rarr; {{ a.new_value }}</span>
+                    {% elif a.new_value %}
+                    <span class="text-gray-500">{{ a.new_value }}</span>
+                    {% endif %}
+                </div>
+                <div class="text-xs text-gray-400">
+                    {{ a.created_at.strftime('%Y-%m-%d %H:%M:%S') if a.created_at else '' }}
+                    {% if a.created_by != 'system' %}
+                    <span class="ml-1 text-blue-500">by {{ a.created_by }}</span>
+                    {% endif %}
+                </div>
+            </div>
+            {% if a.details_json %}
+            <div class="text-xs text-gray-400 mt-1">{{ a.details_json }}</div>
+            {% endif %}
+        </div>
+        {% endfor %}
+        {% if not audit %}
+        <div class="px-6 py-8 text-center text-gray-400">No audit entries</div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

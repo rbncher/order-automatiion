@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Order Automation{% endblock %} | Speed Addicts</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+    <style>
+        [data-status="pending"] { color: #d97706; }
+        [data-status="submitted"] { color: #2563eb; }
+        [data-status="sent"] { color: #2563eb; }
+        [data-status="pending_fulfillment"] { color: #0891b2; }
+        [data-status="shipped"] { color: #7c3aed; }
+        [data-status="tracking_posted"] { color: #059669; }
+        [data-status="complete"] { color: #16a34a; }
+        [data-status="failed"] { color: #dc2626; }
+        [data-status="cancelled"] { color: #6b7280; }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <nav class="bg-gray-900 text-white shadow-lg">
+        <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+            <div class="flex items-center space-x-6">
+                <a href="/" class="text-xl font-bold">Order Automation</a>
+                <a href="/" class="hover:text-gray-300 text-sm">Dashboard</a>
+                <a href="/fulfillments" class="hover:text-gray-300 text-sm">Fulfillments</a>
+            </div>
+            {% if user %}
+            <div class="flex items-center space-x-4 text-sm">
+                <span class="text-gray-400">{{ user }}</span>
+                <a href="/logout" class="text-gray-400 hover:text-white">Logout</a>
+            </div>
+            {% endif %}
+        </div>
+    </nav>
+
+    <main class="max-w-7xl mx-auto px-4 py-6">
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="max-w-7xl mx-auto px-4 py-4 text-center text-sm text-gray-400">
+        Speed Addicts Order Automation &mdash; v1.0
+    </footer>
+</body>
+</html>
