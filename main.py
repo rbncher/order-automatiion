@@ -68,6 +68,36 @@ async def lifespan(app: FastAPI):
             existing.config_json = {**existing.config_json, "dc_id": 30, "dc_code": "REV"}
             db.commit()
             logger.info("Upgraded REV'IT vendor config with dc_id=30")
+
+        # Seed Leatt (email-delivery) vendor. Inactive by default until
+        # Gmail OAuth creds and LEATT_EMAIL_TO are configured.
+        existing_leatt = db.query(Vendor).filter(Vendor.code == "LET").first()
+        if not existing_leatt:
+            leatt_ready = bool(
+                config.GMAIL_REFRESH_TOKEN and config.LEATT_EMAIL_TO,
+            )
+            leatt = Vendor(
+                code="LET",
+                name="Leatt",
+                connector_type="leatt_email",
+                config_json={
+                    "dc_id": 26,
+                    "dc_code": "LET",
+                    "dc_name": "Leatt",
+                    "email_to": config.LEATT_EMAIL_TO,
+                    "email_cc": config.LEATT_EMAIL_CC,
+                    "buyer_account": config.LEATT_DEALER_ACCOUNT,
+                    "carrier_preference": "FedEx Ground",
+                },
+                is_active=leatt_ready,
+            )
+            db.add(leatt)
+            db.commit()
+            logger.info(
+                "Seeded Leatt vendor (active=%s — set GMAIL_REFRESH_TOKEN "
+                "+ LEATT_EMAIL_TO to enable)",
+                leatt_ready,
+            )
     finally:
         db.close()
 

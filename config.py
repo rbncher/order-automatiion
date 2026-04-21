@@ -51,6 +51,23 @@ SMTP_USER = os.environ.get("SMTP_USER", "")
 SMTP_PASS = os.environ.get("SMTP_PASS", "")
 
 # ---------------------------------------------------------------------------
+# Gmail API (outbound PO emails from dropship@speedaddicts.com)
+# ---------------------------------------------------------------------------
+GMAIL_CLIENT_ID = os.environ.get("GMAIL_CLIENT_ID", "")
+GMAIL_CLIENT_SECRET = os.environ.get("GMAIL_CLIENT_SECRET", "")
+GMAIL_REFRESH_TOKEN = os.environ.get("GMAIL_REFRESH_TOKEN", "")
+GMAIL_SEND_AS = os.environ.get("GMAIL_SEND_AS", "dropship@speedaddicts.com")
+
+# ---------------------------------------------------------------------------
+# Leatt (email delivery)
+# ---------------------------------------------------------------------------
+# During testing route to schad@speedaddicts.com; swap to real intake for prod.
+LEATT_EMAIL_TO = os.environ.get("LEATT_EMAIL_TO", "")
+LEATT_EMAIL_CC = os.environ.get("LEATT_EMAIL_CC", "")
+LEATT_EMAIL_REPLY_TO = os.environ.get("LEATT_EMAIL_REPLY_TO", "")
+LEATT_DEALER_ACCOUNT = os.environ.get("LEATT_DEALER_ACCOUNT", "DLR20874")
+
+# ---------------------------------------------------------------------------
 # Application
 # ---------------------------------------------------------------------------
 APP_HOST = os.environ.get("APP_HOST", "0.0.0.0")

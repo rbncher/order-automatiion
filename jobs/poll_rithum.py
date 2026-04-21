@@ -105,7 +105,8 @@ def _ingest_fulfillment(
             "vendor_id": vendor.id,
             "site_order_id": str(order.get("SiteOrderID") or "") or None,
             "sku": sku,
-            "ean": product.get("EAN") or "",
+            # Catalog sometimes carries the 13-digit barcode in UPC instead of EAN
+            "ean": (product.get("EAN") or product.get("UPC") or "").strip(),
             "mpn": product.get("MPN") or "",
             "title": order_item.get("Title") or "",
             "quantity": int(fi.get("Quantity") or 1),

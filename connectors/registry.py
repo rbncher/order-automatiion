@@ -1,6 +1,7 @@
 """Connector discovery and instantiation."""
 import logging
 from connectors.base import VendorConnector
+from connectors.leatt.connector import LeattConnector
 from connectors.revit.connector import RevitConnector
 
 logger = logging.getLogger(__name__)
@@ -8,7 +9,7 @@ logger = logging.getLogger(__name__)
 # Map connector_type to class
 CONNECTOR_CLASSES: dict[str, type[VendorConnector]] = {
     "revit_sftp": RevitConnector,
-    # "email_pdf": EmailPdfConnector,  # Phase 2
+    "leatt_email": LeattConnector,
     # "api": ApiConnector,             # Phase 3
 }
 

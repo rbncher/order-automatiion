@@ -34,6 +34,8 @@ def _line_dicts_for_batch(db: Session, batch: POBatch) -> list[dict]:
     return [
         {
             "line_item_id": it.id,
+            "rithum_order_id": it.rithum_order_id,
+            "rithum_item_id": it.rithum_item_id,
             "ean": it.ean,
             "mpn": it.mpn,
             "sku": it.sku,
@@ -97,6 +99,27 @@ def _send_batch(
     line_dicts = _line_dicts_for_batch(db, batch)
     if not line_dicts:
         logger.warning("POBatch %s has no line items — skipping", batch.po_number)
+        return False
+
+    # Vendor-specific pre-flight validation (e.g. REV'IT requires EAN)
+    errors = connector.validate_line_items(line_dicts)
+    if errors:
+        msg = "; ".join(errors)
+        logger.warning(
+            "POBatch %s failed validation: %s", batch.po_number, msg,
+        )
+        batch.status = "failed"
+        batch.last_error = f"validation: {msg}"[:2000]
+        for item in (
+            db.query(OrderLineItem)
+            .filter(OrderLineItem.po_batch_id == batch.id)
+            .all()
+        ):
+            try:
+                transition(db, item.id, "failed", {"error": msg})
+            except Exception:
+                pass
+        db.commit()
         return False
 
     # Capture the payload for audit before sending

@@ -42,3 +42,10 @@ class VendorConnector(ABC):
         """Optional: return the exact payload (CSV/EDI/email body) that place_order
         would send. Used by the dashboard for audit preview. Default: None."""
         return None
+
+    def validate_line_items(self, line_items: list[dict]) -> list[str]:
+        """Return a list of human-readable validation errors for the batch.
+
+        Empty list = passes. Default: no validation. Subclasses override with
+        vendor-specific required fields (e.g. REV'IT requires EAN)."""
+        return []

@@ -240,6 +240,8 @@ async def fulfillment_download(
             .all()
         )
         line_dicts = [{
+            "rithum_order_id": it.rithum_order_id,
+            "rithum_item_id": it.rithum_item_id,
             "ean": it.ean, "mpn": it.mpn, "sku": it.sku, "title": it.title,
             "quantity": it.quantity,
             "unit_price": float(it.unit_price) if it.unit_price is not None else None,

@@ -43,6 +43,23 @@ class RevitConnector(VendorConnector):
             port=self.sftp_port,
         )
 
+    def validate_line_items(self, line_items: list[dict]) -> list[str]:
+        """REV'IT requires EAN on every line, plus a ship-to with street address."""
+        errors: list[str] = []
+        for i, item in enumerate(line_items, start=1):
+            sku = item.get("sku") or f"line {i}"
+            if not (item.get("ean") or "").strip():
+                errors.append(f"Missing EAN for SKU {sku}")
+        if line_items:
+            first = line_items[0]
+            if not (first.get("ship_to_name") or "").strip():
+                errors.append("Missing ship-to name")
+            if not (first.get("ship_to_address1") or "").strip():
+                errors.append("Missing ship-to address")
+            if not (first.get("ship_to_country") or "").strip():
+                errors.append("Missing ship-to country")
+        return errors
+
     def build_payload(self, po_number: str, line_items: list[dict]) -> str:
         """Build the REV'IT EDI CSV for a PO without sending it."""
         if not line_items:
