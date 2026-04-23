@@ -1,19 +1,29 @@
-"""Leatt vendor connector — email-based PO delivery via Gmail API.
+"""Generic email-delivery vendor connector.
 
-Rithum fulfillment at DC 26 (Leatt) → we email a human-readable PO to
-Leatt's intake address from dropship@speedaddicts.com. Leatt's team
-manually processes the order and replies with tracking (email body
-or PDF invoice attachment).
+Covers any vendor that accepts a dropship PO via a plain email to a fixed
+intake address (6D, Airoh, Schuberth, SMK, Leatt, ...). All per-vendor
+variation lives in Vendor.config_json; no per-vendor code.
 
-Tracking retrieval is not in this connector yet — handled by a
-separate email-scrape job that watches invoices@speedaddicts.com.
+Required config_json keys:
+  email_to          destination address
+
+Optional config_json keys:
+  vendor_name            human label used in logs (defaults to vendor_code)
+  email_cc               CC address
+  email_from             send-as address (defaults to GMAIL_SEND_AS)
+  reply_to               reply-to address
+  buyer_account          dealer/customer number printed in the PO body
+  account_label          label for buyer_account field (e.g. "Dealer Account",
+                         "Customer #"). Default "Account".
+  carrier_preference     e.g. "FedEx Ground"
+  special_instructions   free-text notes appended to the email
 """
 import logging
 
 import config
 from clients.gmail import GmailClient
 from connectors.base import VendorConnector
-from connectors.leatt.email_template import (
+from connectors.email_generic.email_template import (
     format_html, format_plain, format_subject,
 )
 from core.schemas import TrackingInfo
@@ -21,25 +31,22 @@ from core.schemas import TrackingInfo
 logger = logging.getLogger(__name__)
 
 
-class LeattConnector(VendorConnector):
-    """Email-based PO delivery for Leatt."""
-
-    def __init__(self, vendor_code: str = "LET", vendor_config: dict | None = None):
+class EmailGenericConnector(VendorConnector):
+    def __init__(self, vendor_code: str, vendor_config: dict | None = None):
         cfg = vendor_config or {}
         super().__init__(vendor_code, cfg)
 
-        # Routing
-        self.email_to = cfg.get("email_to") or config.LEATT_EMAIL_TO
-        self.email_cc = cfg.get("email_cc") or config.LEATT_EMAIL_CC
+        self.vendor_name = cfg.get("vendor_name") or vendor_code
+        self.email_to = (cfg.get("email_to") or "").strip()
+        self.email_cc = (cfg.get("email_cc") or "").strip()
         self.email_from = cfg.get("email_from") or config.GMAIL_SEND_AS
-        self.reply_to = cfg.get("reply_to") or config.LEATT_EMAIL_REPLY_TO
+        self.reply_to = (cfg.get("reply_to") or "").strip()
 
-        # PO content
-        self.carrier_preference = cfg.get("carrier_preference") or "FedEx Ground"
-        self.buyer_account = cfg.get("buyer_account") or config.LEATT_DEALER_ACCOUNT
+        self.carrier_preference = (cfg.get("carrier_preference") or "").strip()
+        self.buyer_account = (cfg.get("buyer_account") or "").strip()
+        self.account_label = (cfg.get("account_label") or "Account").strip()
         self.special_instructions = cfg.get("special_instructions") or ""
 
-        # Gmail transport (lazily authenticated)
         self._gmail: GmailClient | None = None
 
     def _client(self) -> GmailClient:
@@ -47,12 +54,7 @@ class LeattConnector(VendorConnector):
             self._gmail = GmailClient(send_as=self.email_from)
         return self._gmail
 
-    # ------------------------------------------------------------------
-    # VendorConnector interface
-    # ------------------------------------------------------------------
-
     def validate_line_items(self, line_items: list[dict]) -> list[str]:
-        """Leatt requires SKU, quantity, and a full ship-to address."""
         errors: list[str] = []
         for i, item in enumerate(line_items, start=1):
             if not (item.get("sku") or "").strip():
@@ -72,7 +74,6 @@ class LeattConnector(VendorConnector):
         return errors
 
     def build_payload(self, po_number: str, line_items: list[dict]) -> str:
-        """Return the plain-text email body. Used for dashboard preview."""
         rithum_order_id = (line_items[0].get("rithum_order_id")
                            if line_items else "") or ""
         return format_plain(
@@ -81,21 +82,20 @@ class LeattConnector(VendorConnector):
             line_items=line_items,
             carrier_preference=self.carrier_preference,
             buyer_account=self.buyer_account,
+            account_label=self.account_label,
             special_instructions=self.special_instructions,
         )
 
     def place_order(self, po_number: str, line_items: list[dict]) -> bool:
-        """Send the PO as an email to Leatt via Gmail API."""
         if not line_items:
             raise ValueError("Cannot place empty order")
         if not self.email_to:
             raise RuntimeError(
-                "Leatt connector not configured — set LEATT_EMAIL_TO (or "
-                "vendor config_json.email_to)",
+                f"{self.vendor_name} ({self.vendor_code}) connector not configured — "
+                f"set vendor config_json.email_to",
             )
 
         rithum_order_id = line_items[0].get("rithum_order_id") or ""
-
         subject = format_subject(po_number, rithum_order_id)
         body_text = format_plain(
             po_number=po_number,
@@ -103,6 +103,7 @@ class LeattConnector(VendorConnector):
             line_items=line_items,
             carrier_preference=self.carrier_preference,
             buyer_account=self.buyer_account,
+            account_label=self.account_label,
             special_instructions=self.special_instructions,
         )
         body_html = format_html(
@@ -111,6 +112,7 @@ class LeattConnector(VendorConnector):
             line_items=line_items,
             carrier_preference=self.carrier_preference,
             buyer_account=self.buyer_account,
+            account_label=self.account_label,
             special_instructions=self.special_instructions,
         )
 
@@ -135,19 +137,17 @@ class LeattConnector(VendorConnector):
         result = client.send(msg)
         gmail_id = result.get("id")
         logger.info(
-            "Leatt: sent PO %s to %s (Gmail message id %s)",
-            po_number, self.email_to, gmail_id,
+            "%s: sent PO %s to %s (Gmail message id %s)",
+            self.vendor_name, po_number, self.email_to, gmail_id,
         )
         return True
 
     def retrieve_tracking(self, po_numbers: list[str]) -> list[TrackingInfo]:
-        """Not implemented yet — tracking comes via a separate email-watcher job."""
         return []
 
     def check_health(self) -> dict:
-        """Verify Gmail OAuth token can be refreshed and destinations are set."""
         if not self.email_to:
-            return {"ok": False, "error": "LEATT_EMAIL_TO not configured"}
+            return {"ok": False, "error": f"{self.vendor_code}: email_to not configured"}
         try:
             return self._client().check_health()
         except Exception as e:

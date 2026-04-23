@@ -71,33 +71,105 @@ async def lifespan(app: FastAPI):
 
         # Seed Leatt (email-delivery) vendor. Inactive by default until
         # Gmail OAuth creds and LEATT_EMAIL_TO are configured.
+        leatt_ready = bool(
+            config.GMAIL_REFRESH_TOKEN and config.LEATT_EMAIL_TO,
+        )
+        leatt_cfg = {
+            "dc_id": 26,
+            "dc_code": "LET",
+            "dc_name": "Leatt",
+            "vendor_name": "Leatt",
+            "email_to": config.LEATT_EMAIL_TO,
+            "email_cc": config.LEATT_EMAIL_CC,
+            "reply_to": config.LEATT_EMAIL_REPLY_TO,
+            "buyer_account": config.LEATT_DEALER_ACCOUNT,
+            "account_label": "Dealer Account",
+            "carrier_preference": "FedEx Ground",
+        }
         existing_leatt = db.query(Vendor).filter(Vendor.code == "LET").first()
         if not existing_leatt:
-            leatt_ready = bool(
-                config.GMAIL_REFRESH_TOKEN and config.LEATT_EMAIL_TO,
-            )
-            leatt = Vendor(
+            db.add(Vendor(
                 code="LET",
                 name="Leatt",
-                connector_type="leatt_email",
-                config_json={
-                    "dc_id": 26,
-                    "dc_code": "LET",
-                    "dc_name": "Leatt",
-                    "email_to": config.LEATT_EMAIL_TO,
-                    "email_cc": config.LEATT_EMAIL_CC,
-                    "buyer_account": config.LEATT_DEALER_ACCOUNT,
-                    "carrier_preference": "FedEx Ground",
-                },
+                connector_type="email_generic",
+                config_json=leatt_cfg,
                 is_active=leatt_ready,
-            )
-            db.add(leatt)
+            ))
             db.commit()
             logger.info(
                 "Seeded Leatt vendor (active=%s — set GMAIL_REFRESH_TOKEN "
                 "+ LEATT_EMAIL_TO to enable)",
                 leatt_ready,
             )
+        elif existing_leatt.connector_type == "leatt_email":
+            # Migrate legacy connector_type → email_generic
+            existing_leatt.connector_type = "email_generic"
+            existing_leatt.config_json = {**leatt_cfg, **(existing_leatt.config_json or {}),
+                                          "account_label": "Dealer Account",
+                                          "vendor_name": "Leatt"}
+            db.commit()
+            logger.info("Migrated Leatt vendor to email_generic connector")
+
+        # Seed Priority-1 email vendors as inactive. Ops flips active after
+        # confirming PO format with each vendor.
+        #   email_to from rollout spreadsheet; buyer_account/label from same.
+        p1_email_vendors = [
+            {
+                "code": "6D",
+                "name": "6D Helmets",
+                "dc_id": 22,
+                "email_to": "jcuriel@6dhelmets.com",
+                "buyer_account": "",
+                "account_label": "Account",
+            },
+            {
+                "code": "AIR",
+                "name": "Airoh",
+                "dc_id": 41,
+                "email_to": "suziek@airohusa.com",
+                "buyer_account": "",
+                "account_label": "Account",
+            },
+            {
+                "code": "SHU",
+                "name": "Schuberth",
+                "dc_id": 32,
+                "email_to": "sales-sna@schuberth.com",
+                "buyer_account": "23691",
+                "account_label": "Customer #",
+            },
+            {
+                "code": "SMK",
+                "name": "SMK",
+                "dc_id": 37,
+                "email_to": "",  # TBD per spreadsheet
+                "buyer_account": "",
+                "account_label": "Account",
+            },
+        ]
+        for v in p1_email_vendors:
+            if db.query(Vendor).filter(Vendor.code == v["code"]).first():
+                continue
+            db.add(Vendor(
+                code=v["code"],
+                name=v["name"],
+                connector_type="email_generic",
+                config_json={
+                    "dc_id": v["dc_id"],
+                    "dc_code": v["code"],
+                    "dc_name": v["name"],
+                    "vendor_name": v["name"],
+                    "email_to": v["email_to"],
+                    "email_cc": "",
+                    "buyer_account": v["buyer_account"],
+                    "account_label": v["account_label"],
+                    "carrier_preference": "FedEx Ground",
+                },
+                is_active=False,  # ops activates after confirming PO format
+            ))
+            logger.info("Seeded %s (%s) — inactive pending PO format confirmation",
+                        v["name"], v["code"])
+        db.commit()
     finally:
         db.close()
 

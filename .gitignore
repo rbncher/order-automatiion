@@ -17,3 +17,8 @@ logs/
 *.pdf
 *.xlsx
 *.xls
+
+# Local credential files (never commit)
+rest-credentials.txt
+*-credentials.txt
+*.credentials.json

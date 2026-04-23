@@ -1,6 +1,6 @@
-"""Leatt connector validation + email template formatting."""
-from connectors.leatt.connector import LeattConnector
-from connectors.leatt.email_template import (
+"""Generic email connector validation + template formatting."""
+from connectors.email_generic.connector import EmailGenericConnector
+from connectors.email_generic.email_template import (
     format_subject, format_plain, format_html,
 )
 
@@ -27,21 +27,26 @@ def _line(**overrides):
     return d
 
 
+def _connector(**cfg):
+    base = {"email_to": "x@example.com", "vendor_name": "Leatt"}
+    base.update(cfg)
+    return EmailGenericConnector(vendor_code="LET", vendor_config=base)
+
+
 def test_validate_passes_on_complete_line():
-    c = LeattConnector(vendor_config={})
-    assert c.validate_line_items([_line()]) == []
+    assert _connector().validate_line_items([_line()]) == []
 
 
 def test_validate_flags_missing_ship_to():
-    c = LeattConnector(vendor_config={})
-    errors = c.validate_line_items([_line(ship_to_name="", ship_to_address1="")])
+    errors = _connector().validate_line_items(
+        [_line(ship_to_name="", ship_to_address1="")]
+    )
     assert any("name" in e.lower() for e in errors)
     assert any("address" in e.lower() for e in errors)
 
 
 def test_validate_flags_bad_quantity():
-    c = LeattConnector(vendor_config={})
-    errors = c.validate_line_items([_line(quantity=0)])
+    errors = _connector().validate_line_items([_line(quantity=0)])
     assert any("quantity" in e.lower() for e in errors)
 
 
@@ -55,14 +60,27 @@ def test_plain_body_includes_sku_and_ship_to():
         po_number="LET-887182",
         rithum_order_id=806270,
         line_items=[_line()],
-        buyer_account="DLR20874",
+        buyer_account="20874",
+        account_label="Dealer Account",
     )
     assert "LET-887182" in body
     assert "806270" in body
     assert "LET-5024060643" in body
     assert "Efren Gonzalez" in body
-    assert "DLR20874" in body
+    assert "20874" in body
+    assert "Dealer Account" in body
     assert "$153.00" in body
+
+
+def test_plain_body_custom_account_label():
+    body = format_plain(
+        po_number="SHU-1",
+        rithum_order_id=1,
+        line_items=[_line()],
+        buyer_account="23691",
+        account_label="Customer #",
+    )
+    assert "Customer #: 23691" in body
 
 
 def test_html_body_escapes_values():
@@ -76,15 +94,33 @@ def test_html_body_escapes_values():
 
 
 def test_build_payload_uses_line_item_order_id():
-    c = LeattConnector(vendor_config={"email_to": "x@example.com"})
-    body = c.build_payload("LET-1", [_line()])
+    body = _connector().build_payload("LET-1", [_line()])
     assert "801617" in body
 
 
+def test_build_payload_uses_vendor_account_label():
+    body = _connector(
+        buyer_account="23691", account_label="Customer #",
+    ).build_payload("SHU-1", [_line()])
+    assert "Customer #: 23691" in body
+
+
 def test_place_order_rejects_empty_lines():
-    c = LeattConnector(vendor_config={"email_to": "x@example.com"})
     try:
-        c.place_order("LET-1", [])
+        _connector().place_order("LET-1", [])
     except ValueError:
         return
     assert False, "expected ValueError on empty line items"
+
+
+def test_place_order_requires_email_to():
+    c = EmailGenericConnector(
+        vendor_code="SMK",
+        vendor_config={"vendor_name": "SMK"},  # no email_to
+    )
+    try:
+        c.place_order("SMK-1", [_line()])
+    except RuntimeError as e:
+        assert "email_to" in str(e) or "not configured" in str(e)
+        return
+    assert False, "expected RuntimeError when email_to is missing"

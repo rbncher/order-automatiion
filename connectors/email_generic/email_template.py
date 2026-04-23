@@ -1,9 +1,4 @@
-"""Format a human-readable PO email for Leatt (and email-delivery vendors).
-
-The template is intentionally vendor-agnostic — Leatt is the first
-user but any email-delivery vendor can share it. Tune per vendor via
-the connector's config_json (sender, greeting, carrier preference).
-"""
+"""Vendor-agnostic PO email template (plain + HTML)."""
 from __future__ import annotations
 
 from html import escape
@@ -29,9 +24,9 @@ def format_plain(
     line_items: list[dict],
     carrier_preference: str | None = None,
     buyer_account: str | None = None,
+    account_label: str = "Account",
     special_instructions: str | None = None,
 ) -> str:
-    """Plain-text body, readable in any mail client."""
     if not line_items:
         raise ValueError("Cannot format an empty PO email")
 
@@ -52,15 +47,15 @@ def format_plain(
     contact = " / ".join(b for b in contact_bits if b)
 
     lines = [
-        f"Hello,",
+        "Hello,",
         "",
-        f"Please process the following dropship order on behalf of Speed Addicts.",
+        "Please process the following dropship order on behalf of Speed Addicts.",
         "",
         f"PO Number:       {po_number}",
         f"Rithum Order ID: {rithum_order_id}",
     ]
     if buyer_account:
-        lines.append(f"Dealer Account:  {buyer_account}")
+        lines.append(f"{account_label}: {buyer_account}")
     if carrier_preference:
         lines.append(f"Ship Via:        {carrier_preference}")
     lines += [
@@ -73,7 +68,6 @@ def format_plain(
         lines.append(contact)
     lines += ["", "ITEMS", "-----"]
 
-    # SKU / MPN / Title / Qty / Price
     for i, item in enumerate(line_items, 1):
         lines.append(
             f"{i}. {item.get('sku','')} "
@@ -106,9 +100,9 @@ def format_html(
     line_items: list[dict],
     carrier_preference: str | None = None,
     buyer_account: str | None = None,
+    account_label: str = "Account",
     special_instructions: str | None = None,
 ) -> str:
-    """HTML body with a styled item table. Keep styles inline for email safety."""
     if not line_items:
         raise ValueError("Cannot format an empty PO email")
 
@@ -147,7 +141,7 @@ def format_html(
         ("Rithum Order ID", escape(str(rithum_order_id))),
     ]
     if buyer_account:
-        meta_rows.append(("Dealer Account", escape(buyer_account)))
+        meta_rows.append((escape(account_label), escape(buyer_account)))
     if carrier_preference:
         meta_rows.append(("Ship Via", escape(carrier_preference)))
 

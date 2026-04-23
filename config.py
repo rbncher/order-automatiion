@@ -65,7 +65,7 @@ GMAIL_SEND_AS = os.environ.get("GMAIL_SEND_AS", "dropship@speedaddicts.com")
 LEATT_EMAIL_TO = os.environ.get("LEATT_EMAIL_TO", "")
 LEATT_EMAIL_CC = os.environ.get("LEATT_EMAIL_CC", "")
 LEATT_EMAIL_REPLY_TO = os.environ.get("LEATT_EMAIL_REPLY_TO", "")
-LEATT_DEALER_ACCOUNT = os.environ.get("LEATT_DEALER_ACCOUNT", "DLR20874")
+LEATT_DEALER_ACCOUNT = os.environ.get("LEATT_DEALER_ACCOUNT", "20874")
 
 # ---------------------------------------------------------------------------
 # Application
