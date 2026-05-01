@@ -8,6 +8,7 @@ from connectors.base import VendorConnector
 from connectors.revit.edi_formatter import format_order
 from connectors.revit.invoice_parser import parse_invoice_csv, group_tracking_by_po
 from connectors.revit.stock_parser import parse_stock_file
+from core import shadow
 from core.schemas import TrackingInfo
 
 logger = logging.getLogger(__name__)
@@ -126,9 +127,10 @@ class RevitConnector(VendorConnector):
         """Generate EDI CSV and upload to REV'IT SFTP."""
         csv_content = self.build_payload(po_number, line_items)
 
-        if config.SHADOW_MODE:
+        if shadow.is_shadow(self.config):
             logger.info(
-                "SHADOW MODE: Would upload PO %s to REV'IT SFTP (%d items)\n%s",
+                "SHADOW (%s): Would upload PO %s to REV'IT SFTP (%d items)\n%s",
+                shadow.reason(self.config),
                 po_number, len(line_items), csv_content,
             )
             return True

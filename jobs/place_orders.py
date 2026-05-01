@@ -13,8 +13,8 @@ from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 
-import config
 from clients.rithum import RithumClient
+from core import shadow
 from core.database import SessionLocal
 from core.models import Vendor, OrderLineItem, POBatch, JobRun
 from core.state_machine import transition
@@ -178,10 +178,11 @@ def _send_batch(
         batch.po_number, vendor.code, batch.line_count,
     )
 
-    # Skip the Rithum mutation in shadow mode
-    if config.SHADOW_MODE:
+    # Skip the Rithum mutation in shadow mode (global or per-vendor)
+    if shadow.is_shadow(vendor.config_json):
         logger.info(
-            "SHADOW MODE: not marking Rithum fulfillment %d Pending",
+            "SHADOW (%s): not marking Rithum fulfillment %d Pending",
+            shadow.reason(vendor.config_json),
             batch.rithum_fulfillment_id,
         )
         return True
@@ -203,14 +204,16 @@ def run():
         rithum = RithumClient()
         rithum.authenticate()
 
-        # 1) Finish half-done batches: connector succeeded but Rithum mark didn't
+        # 1) Finish half-done batches: connector succeeded but Rithum mark didn't.
+        # Skip vendors still in shadow (global or per-vendor).
         for batch in (
             db.query(POBatch)
             .filter(POBatch.status == "sent")
             .order_by(POBatch.sent_at)
             .all()
         ):
-            if not config.SHADOW_MODE:
+            vendor = db.query(Vendor).get(batch.vendor_id)
+            if vendor and not shadow.is_shadow(vendor.config_json):
                 if _mark_rithum_pending(rithum, batch, db):
                     resumed += 1
 

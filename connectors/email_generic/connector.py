@@ -26,6 +26,7 @@ from connectors.base import VendorConnector
 from connectors.email_generic.email_template import (
     format_html, format_plain, format_subject,
 )
+from core import shadow
 from core.schemas import TrackingInfo
 
 logger = logging.getLogger(__name__)
@@ -117,9 +118,10 @@ class EmailGenericConnector(VendorConnector):
             special_instructions=self.special_instructions,
         )
 
-        if config.SHADOW_MODE:
+        if shadow.is_shadow(self.config):
             logger.info(
-                "SHADOW MODE: Would email PO %s to %s (cc %s)\nSubject: %s\n\n%s",
+                "SHADOW (%s): Would email PO %s to %s (cc %s)\nSubject: %s\n\n%s",
+                shadow.reason(self.config),
                 po_number, self.email_to, self.email_cc or "—",
                 subject, body_text,
             )

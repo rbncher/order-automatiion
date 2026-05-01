@@ -124,6 +124,7 @@ async def dashboard(request: Request, db: Session = Depends(get_db)):
             "dc_id": cfg.get("dc_id", "—"),
             "dc_name": cfg.get("dc_name", "—"),
             "is_active": v.is_active,
+            "force_shadow": bool(cfg.get("force_shadow")),
             "pending": v_batch_counts.get("pending", 0),
             "sent": v_batch_counts.get("sent", 0),
             "pending_fulfillment": v_batch_counts.get("pending_fulfillment", 0),

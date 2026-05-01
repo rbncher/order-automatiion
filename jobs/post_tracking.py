@@ -11,10 +11,10 @@ from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 
-import config
 from clients.rithum import RithumClient
+from core import shadow
 from core.database import SessionLocal
-from core.models import OrderLineItem, POBatch, JobRun
+from core.models import OrderLineItem, POBatch, JobRun, Vendor
 from core.state_machine import transition
 
 logger = logging.getLogger(__name__)
@@ -97,22 +97,26 @@ def run():
             job.status = "success"
             return
 
-        if config.SHADOW_MODE:
-            logger.info(
-                "SHADOW MODE: would post tracking for %d batches, skipping",
-                len(batches),
-            )
-            job.status = "success"
-            job.details_json = {"shadow_skipped": len(batches)}
-            return
-
+        skipped_shadow = 0
         for batch in batches:
+            vendor = db.query(Vendor).get(batch.vendor_id)
+            if vendor and shadow.is_shadow(vendor.config_json):
+                logger.info(
+                    "SHADOW (%s): would post tracking for PO %s, skipping",
+                    shadow.reason(vendor.config_json), batch.po_number,
+                )
+                skipped_shadow += 1
+                continue
             if _post_one(rithum, batch, db):
                 posted += 1
 
         job.items_processed = posted
         job.status = "success"
-        logger.info("post_tracking done: %d batches posted", posted)
+        job.details_json = {"posted": posted, "shadow_skipped": skipped_shadow}
+        logger.info(
+            "post_tracking done: %d posted, %d skipped (shadow)",
+            posted, skipped_shadow,
+        )
 
     except Exception as e:
         logger.exception("post_tracking failed: %s", e)
