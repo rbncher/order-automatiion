@@ -44,12 +44,19 @@ class RevitConnector(VendorConnector):
         )
 
     def validate_line_items(self, line_items: list[dict]) -> list[str]:
-        """REV'IT requires EAN on every line, plus a ship-to with street address."""
+        """REV'IT requires a 13-digit numeric EAN on every line plus a ship-to
+        with street address. REV'IT's EDI processor rejects the whole order if
+        any EAN is missing or malformed, so we fail fast here."""
         errors: list[str] = []
         for i, item in enumerate(line_items, start=1):
             sku = item.get("sku") or f"line {i}"
-            if not (item.get("ean") or "").strip():
+            ean = (item.get("ean") or "").strip()
+            if not ean:
                 errors.append(f"Missing EAN for SKU {sku}")
+            elif len(ean) != 13 or not ean.isdigit():
+                errors.append(
+                    f"Invalid EAN for SKU {sku}: {ean!r} (must be 13 digits)"
+                )
         if line_items:
             first = line_items[0]
             if not (first.get("ship_to_name") or "").strip():

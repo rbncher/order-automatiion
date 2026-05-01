@@ -11,6 +11,7 @@ from decimal import Decimal
 from sqlalchemy.orm import Session
 
 from clients.rithum import RithumClient
+from connectors.revit import ean_map as revit_ean_map
 from core.database import SessionLocal
 from core.models import Vendor, POBatch, JobRun
 from core.safety import ingest_line_item, check_fulfillment_submitted
@@ -97,6 +98,21 @@ def _ingest_fulfillment(
         order_item = order_items_by_id.get(order_item_id) or {}
         product = products.get(sku) or {}
 
+        mpn = product.get("MPN") or ""
+        # Catalog sometimes carries the 13-digit barcode in UPC instead of EAN.
+        # For REV'IT specifically, fall back to the local article-data map
+        # (keyed by MPN) when neither field is populated — REV'IT's EDI
+        # interface rejects orders without a 13-digit EAN.
+        ean = (product.get("EAN") or product.get("UPC") or "").strip()
+        if not ean and vendor.code == "REV":
+            mapped = revit_ean_map.lookup(mpn)
+            if mapped:
+                ean = mapped
+                logger.info(
+                    "REV'IT EAN backfilled from local map: SKU %s, MPN %s -> %s",
+                    sku, mpn, ean,
+                )
+
         data = {
             "rithum_order_id": order_id,
             "rithum_item_id": order_item_id,
@@ -105,9 +121,8 @@ def _ingest_fulfillment(
             "vendor_id": vendor.id,
             "site_order_id": str(order.get("SiteOrderID") or "") or None,
             "sku": sku,
-            # Catalog sometimes carries the 13-digit barcode in UPC instead of EAN
-            "ean": (product.get("EAN") or product.get("UPC") or "").strip(),
-            "mpn": product.get("MPN") or "",
+            "ean": ean,
+            "mpn": mpn,
             "title": order_item.get("Title") or "",
             "quantity": int(fi.get("Quantity") or 1),
             "unit_price": (

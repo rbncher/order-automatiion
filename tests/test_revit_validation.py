@@ -27,6 +27,25 @@ def test_missing_ean_flagged():
     assert "REV-TEST-1" in errors[0]
 
 
+def test_short_ean_flagged():
+    errors = _c().validate_line_items([_line(ean="12345")])
+    assert len(errors) == 1
+    assert "13 digits" in errors[0]
+
+
+def test_non_numeric_ean_flagged():
+    errors = _c().validate_line_items([_line(ean="ABCDEFGHIJKLM")])
+    assert len(errors) == 1
+    assert "13 digits" in errors[0]
+
+
+def test_upc_length_ean_flagged():
+    # 12-digit US UPC must NOT pass — REV'IT requires EAN-13 specifically
+    errors = _c().validate_line_items([_line(ean="012345678905")])
+    assert len(errors) == 1
+    assert "13 digits" in errors[0]
+
+
 def test_missing_ship_to_flagged():
     line = _line()
     line["ship_to_name"] = ""

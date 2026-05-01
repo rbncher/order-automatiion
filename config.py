@@ -57,6 +57,9 @@ GMAIL_CLIENT_ID = os.environ.get("GMAIL_CLIENT_ID", "")
 GMAIL_CLIENT_SECRET = os.environ.get("GMAIL_CLIENT_SECRET", "")
 GMAIL_REFRESH_TOKEN = os.environ.get("GMAIL_REFRESH_TOKEN", "")
 GMAIL_SEND_AS = os.environ.get("GMAIL_SEND_AS", "dropship@speedaddicts.com")
+# Where vendor replies should land. dropship@ is unmonitored; ops@ is the
+# real human inbox. Always set as Reply-To unless a vendor config overrides.
+OPS_EMAIL = os.environ.get("OPS_EMAIL", "ops@speedaddicts.com")
 
 # ---------------------------------------------------------------------------
 # Leatt (email delivery)

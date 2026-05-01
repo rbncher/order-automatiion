@@ -40,7 +40,8 @@ class EmailGenericConnector(VendorConnector):
         self.email_to = (cfg.get("email_to") or "").strip()
         self.email_cc = (cfg.get("email_cc") or "").strip()
         self.email_from = cfg.get("email_from") or config.GMAIL_SEND_AS
-        self.reply_to = (cfg.get("reply_to") or "").strip()
+        # Vendor replies must land in the monitored ops inbox, not dropship@.
+        self.reply_to = (cfg.get("reply_to") or config.OPS_EMAIL or "").strip()
 
         self.carrier_preference = (cfg.get("carrier_preference") or "").strip()
         self.buyer_account = (cfg.get("buyer_account") or "").strip()
@@ -128,7 +129,7 @@ class EmailGenericConnector(VendorConnector):
         msg = client.build_message(
             to=self.email_to,
             cc=self.email_cc or None,
-            reply_to=self.reply_to or self.email_from,
+            reply_to=self.reply_to,
             from_addr=self.email_from,
             subject=subject,
             body_text=body_text,

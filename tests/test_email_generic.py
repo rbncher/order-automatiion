@@ -72,6 +72,27 @@ def test_plain_body_includes_sku_and_ship_to():
     assert "$153.00" in body
 
 
+def test_plain_body_excludes_customer_email_and_includes_ops_note():
+    body = format_plain(
+        po_number="LET-1",
+        rithum_order_id=1,
+        line_items=[_line(ship_to_email="customer@private.com")],
+    )
+    assert "customer@private.com" not in body
+    assert "ops@speedaddicts.com" in body
+    assert "Never backorder dropship items" in body
+
+
+def test_html_body_excludes_customer_email():
+    body = format_html(
+        po_number="LET-1",
+        rithum_order_id=1,
+        line_items=[_line(ship_to_email="customer@private.com")],
+    )
+    assert "customer@private.com" not in body
+    assert "ops@speedaddicts.com" in body
+
+
 def test_plain_body_custom_account_label():
     body = format_plain(
         po_number="SHU-1",

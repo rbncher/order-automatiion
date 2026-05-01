@@ -43,8 +43,7 @@ def format_plain(
         first.get("ship_to_country") or "",
     ]
     ship_to = "\n".join(ln for ln in ship_to_lines if ln)
-    contact_bits = [first.get("ship_to_email"), first.get("ship_to_phone")]
-    contact = " / ".join(b for b in contact_bits if b)
+    contact = (first.get("ship_to_phone") or "").strip()
 
     lines = [
         "Hello,",
@@ -84,8 +83,9 @@ def format_plain(
 
     lines += [
         "",
-        "Please reply with tracking (email body or PDF invoice attachment) once the ",
-        f"order ships. Use PO {po_number} on all correspondence.",
+        "Please email ops@speedaddicts.com with any questions or cancellations.",
+        "Never backorder dropship items.",
+        f"Use PO {po_number} on all correspondence.",
         "",
         "Thank you,",
         "Speed Addicts Dropship Automation",
@@ -120,8 +120,7 @@ def format_html(
             first.get("ship_to_country") or "",
         ] if x
     )
-    contact_bits = [first.get("ship_to_email"), first.get("ship_to_phone")]
-    contact_html = escape(" · ".join(b for b in contact_bits if b))
+    contact_html = escape((first.get("ship_to_phone") or "").strip())
 
     rows = []
     for i, item in enumerate(line_items, 1):
@@ -187,7 +186,8 @@ def format_html(
   {notes_html}
 
   <p style="margin-top:24px;color:#333;">
-    Please reply with tracking (email body or PDF invoice attachment) once the order ships.
+    Please email <a href="mailto:ops@speedaddicts.com">ops@speedaddicts.com</a>
+    with any questions or cancellations. Never backorder dropship items.
     Use <b>PO {escape(po_number)}</b> on all correspondence.
   </p>
   <p style="color:#666;margin-top:24px;">Thank you,<br>Speed Addicts Dropship Automation</p>
