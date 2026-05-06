@@ -6,6 +6,7 @@ transitions line items to 'shipped', and leaves the Rithum writeback
 to post_tracking.
 """
 import logging
+from collections import defaultdict
 from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
@@ -18,16 +19,46 @@ from connectors.registry import get_connector
 logger = logging.getLogger(__name__)
 
 
-def _apply_tracking(db: Session, batch: POBatch, tracking) -> int:
-    """Apply a TrackingInfo to a POBatch + its line items. Return items advanced."""
-    ship_date = tracking.ship_date
+def _apply_tracking(db: Session, batch: POBatch, tracking_records: list) -> int:
+    """Apply all tracking records for one POBatch.
+
+    Each line item is matched to its specific tracking by EAN; the POBatch
+    itself stores the "primary" tracking (the one covering the most line
+    items). Multi-box shipments are logged so we can surface the gap until
+    the schema supports per-batch tracking arrays.
+    """
+    if not tracking_records:
+        return 0
+
+    by_ean = {t.ean: t for t in tracking_records if t.ean}
+    by_sku = {t.sku: t for t in tracking_records if t.sku}
+
+    distinct_trackings = sorted({t.tracking_number for t in tracking_records})
+    if len(distinct_trackings) > 1:
+        logger.warning(
+            "PO %s: split shipment — %d distinct trackings %s. Line items get "
+            "per-EAN tracking; POBatch.tracking_number stores primary only.",
+            batch.po_number, len(distinct_trackings), distinct_trackings,
+        )
+
+    # Primary = tracking covering the most line items (stable tiebreak by value)
+    counts: dict[str, int] = defaultdict(int)
+    for t in tracking_records:
+        counts[t.tracking_number] += 1
+    primary_num = sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))[0][0]
+    primary = next(t for t in tracking_records if t.tracking_number == primary_num)
+
+    earliest_ship = min(
+        (t.ship_date for t in tracking_records if t.ship_date),
+        default=None,
+    )
     shipped_at = (
-        datetime.combine(ship_date, datetime.min.time()).replace(tzinfo=timezone.utc)
-        if ship_date else datetime.now(timezone.utc)
+        datetime.combine(earliest_ship, datetime.min.time()).replace(tzinfo=timezone.utc)
+        if earliest_ship else datetime.now(timezone.utc)
     )
 
-    batch.tracking_number = tracking.tracking_number
-    batch.carrier = tracking.carrier or "Other"
+    batch.tracking_number = primary.tracking_number
+    batch.carrier = primary.carrier or "Other"
     batch.shipped_at = shipped_at
     batch.status = "shipped"
 
@@ -35,15 +66,20 @@ def _apply_tracking(db: Session, batch: POBatch, tracking) -> int:
     for item in (
         db.query(OrderLineItem).filter(OrderLineItem.po_batch_id == batch.id).all()
     ):
-        item.tracking_number = tracking.tracking_number
-        item.carrier = batch.carrier
-        item.ship_date = ship_date
+        match = (
+            (by_ean.get(item.ean) if item.ean else None)
+            or (by_sku.get(item.sku) if item.sku else None)
+            or primary
+        )
+        item.tracking_number = match.tracking_number
+        item.carrier = match.carrier or batch.carrier
+        item.ship_date = match.ship_date or earliest_ship
         try:
             if item.status in ("submitted", "pending_fulfillment"):
                 transition(db, item.id, "shipped", {
-                    "tracking_number": tracking.tracking_number,
-                    "carrier": batch.carrier,
-                    "ship_date": str(ship_date) if ship_date else None,
+                    "tracking_number": match.tracking_number,
+                    "carrier": item.carrier,
+                    "ship_date": str(item.ship_date) if item.ship_date else None,
                 })
                 advanced += 1
         except Exception:
@@ -95,13 +131,15 @@ def run():
                 logger.info("No new tracking from %s", vendor.code)
                 continue
 
-            # Index POBatches by po_number for matching
-            by_po = {b.po_number: b for b in awaiting}
+            batches_by_po = {b.po_number: b for b in awaiting}
+            trackings_by_po: dict[str, list] = defaultdict(list)
             for t in tracking_list:
-                batch = by_po.get(t.po_number)
-                if not batch:
-                    continue
-                total_tracked += _apply_tracking(db, batch, t)
+                if t.po_number in batches_by_po:
+                    trackings_by_po[t.po_number].append(t)
+            for po_number, recs in trackings_by_po.items():
+                total_tracked += _apply_tracking(
+                    db, batches_by_po[po_number], recs,
+                )
 
         job.items_processed = total_tracked
         job.status = "success"

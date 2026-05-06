@@ -18,6 +18,8 @@ def test_parse_invoice():
     assert results[0].sku == "FAR0890010-ONE S"
     assert results[0].ean == "8700001369633"
     assert results[0].quantity == 6
+    # Parser leaves carrier unset; the connector fills it from shipping_agent
+    assert results[0].carrier is None
 
     # Third item (different PO)
     assert results[2].po_number == "SA-REV-20260401-001"

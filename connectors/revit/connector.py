@@ -145,37 +145,45 @@ class RevitConnector(VendorConnector):
         logger.info("Uploaded PO %s to REV'IT SFTP: %s", po_number, remote_path)
         return True
 
-    def retrieve_tracking(self, po_numbers: list[str]) -> list[TrackingInfo]:
-        """
-        Retrieve tracking from REV'IT invoice CSV.
+    # REV'IT EDI shipping_agent code -> Rithum-friendly carrier label
+    _CARRIER_LABELS = {
+        "FEDEX": "FedEx",
+        "DPD": "DPD",
+        "UPS": "UPS",
+        "USPS": "USPS",
+        "DHL": "DHL",
+    }
 
-        For now, this expects the CSV content to be provided externally
-        (via email parsing). In future, could also check SFTP for invoice files.
+    def _carrier_label(self) -> str:
+        return self._CARRIER_LABELS.get(
+            (self.shipping_agent or "").upper(), self.shipping_agent or "Other",
+        )
+
+    def retrieve_tracking(self, po_numbers: list[str]) -> list[TrackingInfo]:
+        """Retrieve tracking from REV'IT.
+
+        REV'IT does not drop invoice CSVs on the SFTP — they are emailed
+        daily as `Invoices_*.csv` attachments. The Gmail invoice poller
+        feeds those CSVs into `retrieve_tracking_from_csv`. This method
+        is kept for the scheduler interface but always returns [].
         """
-        # This will be called by the email-based tracking job
-        # which passes CSV content. For SFTP-based retrieval:
-        try:
-            with self._get_sftp() as sftp:
-                invoice_dir = f"{self.stock_dir}/invoices"
-                files = sftp.list_dir(invoice_dir)
-                results = []
-                for f in files:
-                    if f.endswith(".csv"):
-                        content = sftp.download_string(f"{invoice_dir}/{f}")
-                        tracking = parse_invoice_csv(content)
-                        # Filter to only our PO numbers
-                        for t in tracking:
-                            if t.po_number in po_numbers:
-                                results.append(t)
-                return results
-        except Exception as e:
-            logger.warning("Could not retrieve tracking from SFTP: %s", e)
-            return []
+        return []
 
     def retrieve_tracking_from_csv(self, csv_content: str, po_numbers: list[str]) -> list[TrackingInfo]:
-        """Parse tracking from a provided CSV string (e.g., from email attachment)."""
-        all_tracking = parse_invoice_csv(csv_content)
-        return [t for t in all_tracking if t.po_number in po_numbers]
+        """Parse tracking from a provided CSV string (e.g., from email attachment).
+
+        Carrier is filled in here from the vendor's configured shipping_agent
+        — REV'IT honors whatever agent we requested in the outbound order EDI,
+        and the invoice CSV does not echo it back.
+        """
+        carrier = self._carrier_label()
+        results = []
+        for t in parse_invoice_csv(csv_content):
+            if t.po_number not in po_numbers:
+                continue
+            t.carrier = carrier
+            results.append(t)
+        return results
 
     def check_health(self) -> dict:
         """Test SFTP connectivity."""

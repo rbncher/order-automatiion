@@ -62,7 +62,7 @@ def parse_invoice_csv(csv_content: str) -> list[TrackingInfo]:
             sku=sku or None,
             ean=ean or None,
             tracking_number=tracking,
-            carrier=None,  # REV'IT uses DPD but not in CSV
+            carrier=None,  # Filled in by the connector from shipping_agent
             ship_date=ship_date,
             quantity=quantity,
         ))
