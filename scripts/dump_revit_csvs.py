@@ -1,8 +1,8 @@
 """Dump REV'IT PO CSVs for vendor sign-off (Peter @ REV'IT).
 
-In shadow mode, place_orders still renders the CSV and saves it to
-POBatch.file_content. This script lists recent REV'IT batches and writes
-their CSVs to a directory so ops can attach them to a confirmation email.
+Pulls each batch's stored CSV from POBatch.file_content; for older batches
+that predate the file_content capture, re-renders on the fly using the
+OrderLineItem rows still attached to the batch.
 
 Usage:
   # List recent REV'IT batches (no files written)
@@ -21,8 +21,10 @@ import argparse
 import os
 import sys
 
+from connectors.revit.connector import RevitConnector
 from core.database import SessionLocal
 from core.models import POBatch, Vendor
+from jobs.place_orders import _line_dicts_for_batch
 
 
 def main() -> int:
@@ -68,22 +70,46 @@ def main() -> int:
             print("\n(use --write to save the CSVs to disk)")
             return 0
 
-        # Write phase
+        # Write phase: prefer stored file_content, fall back to re-render
         os.makedirs(args.out, exist_ok=True)
+        connector = RevitConnector(vendor_config=rev.config_json)
         wrote = 0
+        rerendered = 0
         skipped = 0
         for b in batches:
-            if not b.file_content:
-                print(f"  skip {b.po_number}: no file_content (never rendered)")
-                skipped += 1
-                continue
+            csv_content = b.file_content
+            if not csv_content:
+                # Old batch from before file_content capture — re-render
+                line_dicts = _line_dicts_for_batch(db, b)
+                if not line_dicts:
+                    print(f"  skip {b.po_number}: no line items in DB")
+                    skipped += 1
+                    continue
+                errors = connector.validate_line_items(line_dicts)
+                if errors:
+                    print(f"  skip {b.po_number}: validator errors -> "
+                          f"{'; '.join(errors)}")
+                    print(f"    (run scripts/backfill_revit_eans.py --apply "
+                          f"if EANs are missing)")
+                    skipped += 1
+                    continue
+                try:
+                    csv_content = connector.build_payload(b.po_number, line_dicts)
+                    rerendered += 1
+                except Exception as e:
+                    print(f"  skip {b.po_number}: build_payload raised {e!r}")
+                    skipped += 1
+                    continue
+
             path = os.path.join(args.out, f"{b.po_number}.csv")
             with open(path, "w", encoding="utf-8") as f:
-                f.write(b.file_content)
-            print(f"  wrote {path} ({len(b.file_content)} bytes)")
+                f.write(csv_content)
+            tag = " (re-rendered)" if not b.file_content else ""
+            print(f"  wrote {path} ({len(csv_content)} bytes){tag}")
             wrote += 1
 
-        print(f"\nWrote {wrote} CSV(s) to {args.out}/ (skipped {skipped})")
+        print(f"\nWrote {wrote} CSV(s) to {args.out}/ "
+              f"(re-rendered {rerendered}, skipped {skipped})")
         if wrote:
             print(f"Forward to Peter @ REV'IT:")
             print(f"  scp 'ec2:{args.out}/*.csv' .")
