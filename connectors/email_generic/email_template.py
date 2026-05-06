@@ -67,9 +67,9 @@ def format_plain(
         lines.append(contact)
     lines += ["", "ITEMS", "-----"]
 
-    for i, item in enumerate(line_items, 1):
+    for item in line_items:
         lines.append(
-            f"{i}. {item.get('sku','')} "
+            f"{item.get('sku','')} "
             f"(MPN {item.get('mpn','') or '—'}) — "
             f"{item.get('title','')} "
             f"× {item.get('quantity',0)} @ {_money(item.get('unit_price'))}"
@@ -123,10 +123,9 @@ def format_html(
     contact_html = escape((first.get("ship_to_phone") or "").strip())
 
     rows = []
-    for i, item in enumerate(line_items, 1):
+    for item in line_items:
         rows.append(
             "<tr>"
-            f"<td style='padding:6px 10px;border-bottom:1px solid #eee;'>{i}</td>"
             f"<td style='padding:6px 10px;border-bottom:1px solid #eee;font-family:monospace;'>{escape(item.get('sku',''))}</td>"
             f"<td style='padding:6px 10px;border-bottom:1px solid #eee;font-family:monospace;'>{escape(item.get('mpn','') or '—')}</td>"
             f"<td style='padding:6px 10px;border-bottom:1px solid #eee;'>{escape(item.get('title',''))}</td>"
@@ -173,7 +172,6 @@ def format_html(
   <table style="border-collapse:collapse;width:100%;font-size:14px;">
     <thead>
       <tr style="background:#f6f6f6;">
-        <th style="padding:8px 10px;text-align:left;">#</th>
         <th style="padding:8px 10px;text-align:left;">SKU</th>
         <th style="padding:8px 10px;text-align:left;">MPN</th>
         <th style="padding:8px 10px;text-align:left;">Title</th>
