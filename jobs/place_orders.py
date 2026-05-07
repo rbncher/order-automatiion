@@ -162,7 +162,20 @@ def _send_batch(
         )
         return False
 
-    # Connector accepted the PO
+    # In shadow (global or per-vendor) hold the batch at status='pending'.
+    # The connector has logged the EDI and file_content is captured for
+    # review; advancing to 'sent' would falsely imply we shipped to the
+    # vendor. On uncage, the next place_orders cycle picks the batch up
+    # at 'pending' and runs the real send + Rithum mark.
+    if shadow.is_shadow(vendor.config_json):
+        logger.info(
+            "SHADOW (%s): PO %s held at 'pending' for review (vendor=%s, %d items)",
+            shadow.reason(vendor.config_json),
+            batch.po_number, vendor.code, len(line_dicts),
+        )
+        return True
+
+    # Connector accepted the PO — live path
     batch.status = "sent"
     batch.sent_at = datetime.now(timezone.utc)
     for item in (
@@ -177,15 +190,6 @@ def _send_batch(
         "Sent PO %s to %s (%d items)",
         batch.po_number, vendor.code, batch.line_count,
     )
-
-    # Skip the Rithum mutation in shadow mode (global or per-vendor)
-    if shadow.is_shadow(vendor.config_json):
-        logger.info(
-            "SHADOW (%s): not marking Rithum fulfillment %d Pending",
-            shadow.reason(vendor.config_json),
-            batch.rithum_fulfillment_id,
-        )
-        return True
 
     return _mark_rithum_pending(rithum, batch, db)
 
