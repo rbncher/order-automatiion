@@ -124,9 +124,14 @@ class RithumClient:
         item with that DistributionCenterName.
         """
         ps = page_size or config.RITHUM_PAGE_SIZE
+        # Include PartiallyShipped — multi-DC orders flip to PartiallyShipped
+        # as soon as ONE DC's fulfillment ships, but the remaining
+        # fulfillments at other DCs are still in 'New' state and need
+        # ingesting. Per-fulfillment filters downstream still gate to 'New'.
         base_filter = (
             f"ProfileID eq {config.RITHUM_PROFILE_ID}"
-            f" and ShippingStatus eq 'Unshipped'"
+            f" and (ShippingStatus eq 'Unshipped'"
+            f" or ShippingStatus eq 'PartiallyShipped')"
             f" and PaymentStatus eq 'Cleared'"
         )
 
@@ -315,9 +320,11 @@ class RithumClient:
         Each yielded dict carries {"Fulfillment": <fulfillment>, "Order": <order header>}.
         """
         ps = page_size or config.RITHUM_PAGE_SIZE
+        # Include PartiallyShipped — see comment in fetch_unshipped_orders.
         base_filter = (
             f"ProfileID eq {config.RITHUM_PROFILE_ID}"
-            f" and ShippingStatus eq 'Unshipped'"
+            f" and (ShippingStatus eq 'Unshipped'"
+            f" or ShippingStatus eq 'PartiallyShipped')"
             f" and PaymentStatus eq 'Cleared'"
         )
 
